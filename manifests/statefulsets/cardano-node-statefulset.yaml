@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cardano-node
+spec:
+  serviceName: cardano-node-svc
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cardano-node
+  template:
+    metadata:
+      labels:
+        app: cardano-node
+    spec:
+      initContainers:
+        - name: fetch-config
+          image: alpine:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              apk add --no-cache curl;
+              curl -o /config/config.json https://book.world.dev.cardano.org/environments/preprod/config.json;
+              curl -o /config/topology.json https://book.world.dev.cardano.org/environments/preprod/topology.json;
+              curl -o /config/byron-genesis.json https://book.world.dev.cardano.org/environments/preprod/byron-genesis.json;
+              curl -o /config/shelley-genesis.json https://book.world.dev.cardano.org/environments/preprod/shelley-genesis.json;
+              curl -o /config/alonzo-genesis.json https://book.world.dev.cardano.org/environments/preprod/alonzo-genesis.json;
+              curl -o /config/conway-genesis.json https://book.world.dev.cardano.org/environments/preprod/conway-genesis.json;
+          volumeMounts:
+            - name: node-config
+              mountPath: /config
+        - name: mithril-bootstrap
+          image: ghcr.io/input-output-hk/mithril-client:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              # Set environment variables
+              export CARDANO_NETWORK=preprod
+              export AGGREGATOR_ENDPOINT=https://aggregator.release-preprod.api.mithril.network/aggregator
+              export GENESIS_VERIFICATION_KEY=$(wget -q -O - https://raw.githubusercontent.com/input-output-hk/mithril/main/mithril-infra/configuration/release-preprod/genesis.vkey)
+              export SNAPSHOT_DIGEST=latest
+
+              # Download the latest snapshot
+              ./mithril-client cardano-db snapshot download --digest $SNAPSHOT_DIGEST --output /data/db
+          volumeMounts:
+            - name: node-data
+              mountPath: /data
+      containers:
+        - name: cardano-node
+          image: ghcr.io/intersectmbo/cardano-node:10.3.0
+          ports:
+            - name: node-port
+              containerPort: 3001
+          volumeMounts:
+            - name: node-data
+              mountPath: /data
+            - name: node-ipc
+              mountPath: /ipc
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              cardano-node run \
+                --config /config/config.json \
+                --topology /config/topology.json \
+                --database-path /data/db \
+                --socket-path /ipc/node.socket
+  volumeClaimTemplates:
+    - metadata:
+        name: node-data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 1Gi
+    - metadata:
+        name: node-ipc
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 100Mi
+    - metadata:
+        name: node-config
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 10Mi

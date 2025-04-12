@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cardano-db-sync
+spec:
+  serviceName: cardano-db-sync-svc
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cardano-db-sync
+  template:
+    metadata:
+      labels:
+        app: cardano-db-sync
+    spec:
+      containers:
+        - name: cardano-db-sync
+          image: ghcr.io/intersectmbo/cardano-db-sync:13.6.0.5
+          env:
+            - name: NETWORK
+              value: preprod
+            - name: POSTGRES_HOST
+              value: postgres.default.svc.cluster.local
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: password
+          ports:
+            - name: db-sync-port
+              containerPort: 8080
+          volumeMounts:
+            - name: db-sync-data
+              mountPath: /data
+            - name: node-ipc
+              mountPath: /ipc
+  volumeClaimTemplates:
+    - metadata:
+        name: db-sync-data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 1Gi
+    - metadata:
+        name: node-ipc
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 100Mi
