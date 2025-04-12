@@ -1,5 +1,5 @@
 # cardano-on-k8s
-Deploy cardano-node and cardano-db-sync on Kubernetes
+Deploy **cardano-node** and **cardano-db-sync** on Kubernetes
 
 Write Kubernetes manifests to deploy [cardano-node](https://github.com/IntersectMBO/cardano-node) and [cardano-db-sync](https://github.com/IntersectMBO/cardano-db-sync), with the following requirements:
 - Use testnet-preprod network
